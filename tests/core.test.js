@@ -85,30 +85,52 @@ test("resource placement creates a route-reachable chain", () => {
   }
 });
 
-test("a photon observes along an unobstructed sightline", () => {
-  const game = new QuantumFoamGame({ resourceCount: 0 }, "line-of-sight");
-  let sightline = null;
-
-  for (let index = 0; index < game.cellCount && !sightline; index += 1) {
-    for (const direction of directionNames) {
-      if (!game.isPassageOpen(index, direction)) continue;
-      const first = game.neighbor(index, direction);
-      if (first !== null && game.isPassageOpen(first, direction)) {
-        sightline = {
-          start: index,
-          second: game.neighbor(first, direction),
-        };
-        break;
+test("a photon sees diagonally across an open room", () => {
+  const game = new QuantumFoamGame(
+    { cols: 4, rows: 4, resourceCount: 0, roomCount: 0 },
+    "diagonal-sight",
+  );
+  game.walls.fill(15);
+  for (let y = 0; y < game.config.rows; y += 1) {
+    for (let x = 0; x < game.config.cols; x += 1) {
+      const index = game.index(x, y);
+      if (x < game.config.cols - 1) {
+        game.setPassage(game.walls, index, game.index(x + 1, y), true);
+      }
+      if (y < game.config.rows - 1) {
+        game.setPassage(game.walls, index, game.index(x, y + 1), true);
       }
     }
   }
-
-  assert.ok(sightline);
-  game.activePhoton.position = sightline.start;
+  const start = game.index(0, 0);
+  const diagonal = game.index(3, 3);
+  game.activePhoton.position = start;
   game.activePhoton.notebook.clear();
+  game.resources.set(diagonal, {
+    energy: 18,
+    collected: false,
+    confirmed: false,
+  });
   game.observeFrom(game.activePhoton);
 
-  assert.equal(game.activePhoton.notebook.has(sightline.second), true);
+  assert.equal(game.hasLineOfSight(start, diagonal), true);
+  assert.equal(game.activePhoton.notebook.has(diagonal), true);
+  assert.deepEqual(game.getRevealedResourceIndices(), [diagonal]);
+});
+
+test("a closed corner blocks diagonal vision", () => {
+  const game = new QuantumFoamGame(
+    { cols: 4, rows: 4, resourceCount: 0, roomCount: 0 },
+    "blocked-diagonal",
+  );
+  game.walls.fill(15);
+  const start = game.index(1, 1);
+  const right = game.index(2, 1);
+  const diagonal = game.index(2, 2);
+  game.setPassage(game.walls, start, right, true);
+  game.setPassage(game.walls, right, diagonal, true);
+
+  assert.equal(game.hasLineOfSight(start, diagonal), false);
 });
 
 test("an expedition costs charge and delivery confirms the notebook", () => {
@@ -215,32 +237,28 @@ test("moving onto a hidden node reports the pickup and records its location", ()
   assert.equal(game.resources.get(target).collected, true);
 });
 
-test("an uncollected node is revealed on the map only when it is adjacent", () => {
-  const game = new QuantumFoamGame({ resourceCount: 0 }, "adjacent-reveal");
-  const adjacentDirection = openDirection(game, game.source);
-  const adjacent = game.neighbor(game.source, adjacentDirection);
-  const source = game.coords(game.source);
-  const farther = Array.from({ length: game.cellCount }, (_, index) => index).find((index) => {
-    const cell = game.coords(index);
-    return Math.abs(source.x - cell.x) + Math.abs(source.y - cell.y) === 2;
-  });
-
-  game.resources.set(adjacent, {
+test("an uncollected node is revealed anywhere in line of sight", () => {
+  const game = new QuantumFoamGame(
+    { cols: 5, rows: 5, resourceCount: 0, roomCount: 0 },
+    "visible-node",
+  );
+  game.walls.fill(15);
+  const start = game.index(1, 2);
+  const middle = game.index(2, 2);
+  const visibleNode = game.index(3, 2);
+  game.setPassage(game.walls, start, middle, true);
+  game.setPassage(game.walls, middle, visibleNode, true);
+  game.activePhoton.position = start;
+  game.resources.set(visibleNode, {
     energy: 18,
     collected: false,
     confirmed: false,
   });
-  game.resources.set(farther, {
-    energy: 18,
-    collected: false,
-    confirmed: false,
-  });
 
-  assert.deepEqual(game.getRevealedResourceIndices(), [adjacent]);
+  assert.deepEqual(game.getRevealedResourceIndices(), [visibleNode]);
 
-  game.move(adjacentDirection);
-
-  assert.equal(game.getRevealedResourceIndices().includes(adjacent), false);
+  game.setPassage(game.walls, middle, visibleNode, false);
+  assert.deepEqual(game.getRevealedResourceIndices(), []);
 });
 
 test("the detector reports walking distance through the maze", () => {
@@ -256,6 +274,29 @@ test("the detector reports walking distance through the maze", () => {
   });
 
   assert.equal(game.getProximity().distance, distances[target]);
+});
+
+test("the detector stays quiet beyond its five-step range", () => {
+  const game = new QuantumFoamGame(
+    { cols: 7, rows: 1, resourceCount: 0, roomCount: 0 },
+    "detector-boundary",
+  );
+  game.walls.fill(15);
+  for (let x = 0; x < game.config.cols - 1; x += 1) {
+    game.setPassage(game.walls, game.index(x, 0), game.index(x + 1, 0), true);
+  }
+  const target = game.index(6, 0);
+  game.resources.set(target, {
+    energy: 18,
+    collected: false,
+    confirmed: false,
+  });
+
+  assert.equal(game.getProximity(), null);
+
+  game.move("right");
+
+  assert.equal(game.getProximity().distance, game.config.detectorRange);
 });
 
 test("a photon at zero charge is lost with its undelivered notebook", () => {

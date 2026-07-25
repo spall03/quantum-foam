@@ -119,6 +119,8 @@ function syncInterface() {
   const ratio = game.confirmationRatio;
   const percent = ratio * 100;
   const proximity = game.getProximity();
+  const visibleResources = game.getRevealedResourceIndices();
+  const hasVisualContact = visibleResources.length > 0;
   const exploring = isExploring();
 
   elements.photonEnergyValue.textContent = photon
@@ -137,22 +139,33 @@ function syncInterface() {
     (game.globalEnergy / CONFIG.globalEnergy) * 100,
   )}%`;
 
-  const signalText = proximity
-    ? proximity.distance === 1
-      ? "Node revealed"
-      : proximity.distance <= 2
+  const signalText = hasVisualContact
+    ? "Node sighted"
+    : proximity
+      ? proximity.distance <= 2
         ? "Very close"
-        : proximity.distance <= 4
+        : proximity.distance === 3
           ? "Nearby"
-        : "Faint"
-    : "Quiet";
+          : "Faint"
+      : "Quiet";
   elements.signalLabel.textContent = signalText;
-  elements.signalCard.classList.toggle("is-detecting", Boolean(proximity));
+  elements.signalCard.classList.toggle(
+    "is-detecting",
+    Boolean(proximity || hasVisualContact),
+  );
   elements.signalBars.forEach((bar, index) => {
-    bar.classList.toggle("active", Boolean(proximity && index < proximity.strength));
+    bar.classList.toggle(
+      "active",
+      Boolean(proximity && index < proximity.strength),
+    );
   });
-  elements.canvasSignal.hidden = !proximity;
-  if (proximity) {
+  elements.canvasSignal.hidden = !proximity && !hasVisualContact;
+  if (hasVisualContact) {
+    elements.canvasSignalValue.textContent =
+      visibleResources.length === 1
+        ? "Visual contact · marked on map"
+        : `${visibleResources.length} nodes in sight · marked on map`;
+  } else if (proximity) {
     elements.canvasSignalValue.textContent =
       proximity.distance === 1
         ? "Adjacent · marked on map"

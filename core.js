@@ -10,11 +10,11 @@ export const CONFIG = Object.freeze({
   resourceLinkMinDistance: 6,
   resourceLinkMaxDistance: 10,
   resourceForwardBias: 0.5,
-  detectorRange: 8,
+  detectorRange: 5,
   roomCount: 12,
   roomMinSize: 3,
   roomMaxSize: 4,
-  sightRange: 4,
+  sightRange: 3,
   confirmationThreshold: 0.5,
   confirmedMoveCost: 0,
   unconfirmedMoveCost: 1,
@@ -244,6 +244,87 @@ export class QuantumFoamGame {
     return distances;
   }
 
+  hasLineOfSight(from, to, walls = this.walls) {
+    if (from < 0 || from >= this.cellCount || to < 0 || to >= this.cellCount) {
+      return false;
+    }
+    if (from === to) return true;
+
+    const start = this.coords(from);
+    const target = this.coords(to);
+    const deltaX = target.x - start.x;
+    const deltaY = target.y - start.y;
+    const stepX = Math.sign(deltaX);
+    const stepY = Math.sign(deltaY);
+    const xDirection = stepX > 0 ? "right" : "left";
+    const yDirection = stepY > 0 ? "down" : "up";
+    const tDeltaX = deltaX === 0 ? Infinity : 1 / Math.abs(deltaX);
+    const tDeltaY = deltaY === 0 ? Infinity : 1 / Math.abs(deltaY);
+    let tMaxX = deltaX === 0 ? Infinity : 0.5 / Math.abs(deltaX);
+    let tMaxY = deltaY === 0 ? Infinity : 0.5 / Math.abs(deltaY);
+    let x = start.x;
+    let y = start.y;
+    let guard = Math.abs(deltaX) + Math.abs(deltaY) + 2;
+
+    while ((x !== target.x || y !== target.y) && guard > 0) {
+      guard -= 1;
+      const current = this.index(x, y);
+
+      if (Math.abs(tMaxX - tMaxY) < 1e-9) {
+        const horizontal = this.neighbor(current, xDirection);
+        const vertical = this.neighbor(current, yDirection);
+        if (horizontal === null || vertical === null) return false;
+
+        const horizontalFirst =
+          this.isPassageOpen(current, xDirection, walls) &&
+          this.isPassageOpen(horizontal, yDirection, walls);
+        const verticalFirst =
+          this.isPassageOpen(current, yDirection, walls) &&
+          this.isPassageOpen(vertical, xDirection, walls);
+        if (!horizontalFirst || !verticalFirst) return false;
+
+        x += stepX;
+        y += stepY;
+        tMaxX += tDeltaX;
+        tMaxY += tDeltaY;
+      } else if (tMaxX < tMaxY) {
+        if (!this.isPassageOpen(current, xDirection, walls)) return false;
+        x += stepX;
+        tMaxX += tDeltaX;
+      } else {
+        if (!this.isPassageOpen(current, yDirection, walls)) return false;
+        y += stepY;
+        tMaxY += tDeltaY;
+      }
+    }
+
+    return x === target.x && y === target.y;
+  }
+
+  visibleCellsFrom(start, walls = this.walls) {
+    const visible = new Set();
+    if (start < 0 || start >= this.cellCount) return visible;
+
+    const origin = this.coords(start);
+    const range = this.config.sightRange;
+    for (
+      let y = Math.max(0, origin.y - range);
+      y <= Math.min(this.config.rows - 1, origin.y + range);
+      y += 1
+    ) {
+      for (
+        let x = Math.max(0, origin.x - range);
+        x <= Math.min(this.config.cols - 1, origin.x + range);
+        x += 1
+      ) {
+        const target = this.index(x, y);
+        if (this.hasLineOfSight(start, target, walls)) visible.add(target);
+      }
+    }
+
+    return visible;
+  }
+
   placeResources() {
     const resources = new Map();
     const anchors = [this.source];
@@ -294,16 +375,7 @@ export class QuantumFoamGame {
   }
 
   observeFrom(photon) {
-    const cells = new Set([photon.position]);
-    for (const name of DIRECTION_NAMES) {
-      let current = photon.position;
-      for (let distance = 0; distance < this.config.sightRange; distance += 1) {
-        if (!this.isPassageOpen(current, name)) break;
-        current = this.neighbor(current, name);
-        cells.add(current);
-      }
-    }
-    for (const index of cells) {
+    for (const index of this.visibleCellsFrom(photon.position)) {
       if (!this.confirmed.has(index)) photon.notebook.add(index);
     }
   }
@@ -639,12 +711,10 @@ export class QuantumFoamGame {
 
   getRevealedResourceIndices() {
     if (!this.activePhoton?.alive) return [];
-    const distances = this.routeDistances([this.activePhoton.position]);
+    const visible = this.visibleCellsFrom(this.activePhoton.position);
 
     return [...this.resources.entries()]
-      .filter(([index, resource]) => {
-        return !resource.collected && distances[index] === 1;
-      })
+      .filter(([index, resource]) => !resource.collected && visible.has(index))
       .map(([index]) => index);
   }
 
