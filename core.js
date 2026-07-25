@@ -264,7 +264,7 @@ export class QuantumFoamGame {
     this.turn += 1;
 
     if (!enteringConfirmed) this.observeFrom(photon);
-    this.collectResource(photon);
+    const pickup = this.collectResource(photon);
 
     if (
       this.exit &&
@@ -274,7 +274,7 @@ export class QuantumFoamGame {
     ) {
       this.status = "won";
       this.addLog("The boundary gives way. You generated enough reality to leave.", "success");
-      return { ok: true, event: "won" };
+      return { ok: true, event: "won", pickup };
     }
 
     if (enteringConfirmed && this.isWaystation(target)) {
@@ -286,16 +286,24 @@ export class QuantumFoamGame {
 
     if (photon.energy <= 0 && !this.confirmed.has(photon.position)) {
       this.killPhoton(photon);
-      return { ok: true, event: this.status === "lost" ? "lost" : "photon-lost" };
+      return {
+        ok: true,
+        event: this.status === "lost" ? "lost" : "photon-lost",
+        pickup,
+      };
     }
 
     this.checkEnergyLoss();
-    return { ok: true, event: enteringConfirmed ? "confirmed" : "moved" };
+    return {
+      ok: true,
+      event: enteringConfirmed ? "confirmed" : "moved",
+      pickup,
+    };
   }
 
   collectResource(photon) {
     const resource = this.resources.get(photon.position);
-    if (!resource || resource.collected) return false;
+    if (!resource || resource.collected) return null;
     resource.collected = true;
     const alreadyMapped = this.confirmed.has(photon.position);
     if (alreadyMapped) {
@@ -310,7 +318,11 @@ export class QuantumFoamGame {
         : `Photon ${photon.id + 1} found ${resource.energy} energy. Get it to a confirmed node.`,
       "resource",
     );
-    return true;
+    return {
+      index: photon.position,
+      energy: resource.energy,
+      confirmed: resource.confirmed,
+    };
   }
 
   deliverNotebook(photon) {

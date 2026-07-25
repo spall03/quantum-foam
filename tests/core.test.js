@@ -126,6 +126,27 @@ test("a resource on confirmed ground is collected and becomes a waystation", () 
   assert.equal(game.globalEnergy, game.config.globalEnergy - 3);
 });
 
+test("moving onto a hidden node reports the pickup and records its location", () => {
+  const game = new QuantumFoamGame({ resourceCount: 0 }, "node-pickup");
+  const direction = openDirection(game, game.source);
+  const target = game.neighbor(game.source, direction);
+  game.resources.set(target, {
+    energy: 17,
+    collected: false,
+    confirmed: false,
+  });
+
+  const result = game.move(direction);
+
+  assert.deepEqual(result.pickup, {
+    index: target,
+    energy: 17,
+    confirmed: false,
+  });
+  assert.equal(game.activePhoton.collectedNodes.has(target), true);
+  assert.equal(game.resources.get(target).collected, true);
+});
+
 test("a photon at zero charge is lost with its undelivered notebook", () => {
   const game = new QuantumFoamGame(
     { photonCount: 2, photonCapacity: 1, resourceCount: 0 },

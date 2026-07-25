@@ -226,6 +226,26 @@ button {
   text-transform: uppercase;
 }
 
+.signal-card {
+  position: relative;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.signal-card.is-detecting {
+  border-color: var(--energy);
+  background: linear-gradient(90deg, rgba(255, 209, 102, 0.14), transparent 78%);
+  box-shadow: 0 -8px 24px rgba(255, 209, 102, 0.12);
+  animation: node-signal-pulse 900ms ease-in-out infinite alternate;
+}
+
+.signal-card.is-detecting .eyebrow,
+.signal-card.is-detecting strong {
+  color: var(--energy);
+}
+
 .signal-bars {
   height: 26px;
   display: flex;
@@ -451,6 +471,123 @@ button {
 .corner-label-bottom {
   bottom: 12px;
   left: 14px;
+}
+
+.canvas-signal {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  z-index: 5;
+  min-width: 154px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 209, 102, 0.9);
+  border-radius: 3px;
+  pointer-events: none;
+  background: rgba(26, 21, 9, 0.94);
+  box-shadow:
+    0 0 0 3px rgba(255, 209, 102, 0.08),
+    0 0 24px rgba(255, 209, 102, 0.28);
+  animation: node-signal-pulse 900ms ease-in-out infinite alternate;
+}
+
+.canvas-signal[hidden],
+.node-alert[hidden] {
+  display: none;
+}
+
+.canvas-signal span,
+.canvas-signal strong,
+.node-alert span,
+.node-alert strong,
+.node-alert small {
+  display: block;
+  font-family: var(--mono);
+  text-transform: uppercase;
+}
+
+.canvas-signal span {
+  color: rgba(255, 209, 102, 0.72);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+}
+
+.canvas-signal strong {
+  margin-top: 5px;
+  color: var(--energy);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.node-alert {
+  position: absolute;
+  top: 14%;
+  left: 50%;
+  z-index: 7;
+  width: min(330px, calc(100% - 32px));
+  padding: 16px 18px;
+  border: 1px solid var(--energy);
+  border-radius: 3px;
+  pointer-events: none;
+  opacity: 0;
+  text-align: center;
+  transform: translate(-50%, -10px) scale(0.96);
+  background: rgba(24, 19, 7, 0.96);
+  box-shadow:
+    0 0 0 4px rgba(255, 209, 102, 0.09),
+    0 18px 50px rgba(0, 0, 0, 0.58),
+    0 0 34px rgba(255, 209, 102, 0.28);
+}
+
+.node-alert.is-visible {
+  animation: node-acquired 1800ms ease both;
+}
+
+.node-alert span {
+  color: rgba(255, 209, 102, 0.74);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+}
+
+.node-alert strong {
+  margin-top: 8px;
+  color: var(--energy);
+  font-size: clamp(18px, 3vw, 28px);
+  letter-spacing: -0.02em;
+}
+
+.node-alert small {
+  margin-top: 8px;
+  color: rgba(244, 244, 238, 0.65);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+@keyframes node-signal-pulse {
+  from {
+    filter: brightness(0.92);
+  }
+
+  to {
+    filter: brightness(1.18);
+  }
+}
+
+@keyframes node-acquired {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.96);
+  }
+
+  12%,
+  78% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 4px) scale(0.99);
+  }
 }
 
 .run-result {
@@ -837,6 +974,27 @@ kbd {
   .canvas-frame {
     width: min(100%, calc(100dvh - 385px));
     min-width: 180px;
+  }
+
+  .canvas-signal {
+    top: 9px;
+    left: 10px;
+    min-width: 132px;
+    padding: 7px 9px;
+  }
+
+  .canvas-signal strong {
+    margin-top: 4px;
+    font-size: 9px;
+  }
+
+  .node-alert {
+    top: 10%;
+    padding: 12px 14px;
+  }
+
+  .node-alert small {
+    display: none;
   }
 
   .hud-left {

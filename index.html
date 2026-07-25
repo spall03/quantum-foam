@@ -94,6 +94,15 @@
             ></canvas>
             <div class="corner-label corner-label-top">Reality map // <span id="seed-value"></span></div>
             <div class="corner-label corner-label-bottom" id="notebook-value">Notebook: empty</div>
+            <div class="canvas-signal" id="canvas-signal" hidden aria-hidden="true">
+              <span>Node signal</span>
+              <strong id="canvas-signal-value">Nearby</strong>
+            </div>
+            <div class="node-alert" id="node-alert" hidden role="status" aria-live="assertive">
+              <span>Energy node acquired</span>
+              <strong id="node-alert-value">+20 charge</strong>
+              <small>Location recorded in notebook</small>
+            </div>
             <div class="run-result" id="run-result" hidden>
               <span class="eyebrow" id="result-eyebrow">Run complete</span>
               <h2 id="result-title">Reality generated.</h2>

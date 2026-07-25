@@ -7,8 +7,13 @@ const elements = {
   photonEnergyBar: document.querySelector("#photon-energy-bar"),
   globalEnergyValue: document.querySelector("#global-energy-value"),
   globalEnergyBar: document.querySelector("#global-energy-bar"),
+  signalCard: document.querySelector(".signal-card"),
   signalLabel: document.querySelector("#signal-label"),
   signalBars: [...document.querySelectorAll("#signal-bars i")],
+  canvasSignal: document.querySelector("#canvas-signal"),
+  canvasSignalValue: document.querySelector("#canvas-signal-value"),
+  nodeAlert: document.querySelector("#node-alert"),
+  nodeAlertValue: document.querySelector("#node-alert-value"),
   photonSelector: document.querySelector("#photon-selector"),
   viewMode: document.querySelector("#view-mode"),
   viewTitle: document.querySelector("#view-title"),
@@ -44,6 +49,7 @@ function randomSeed() {
 let game = new QuantumFoamGame({}, params.get("seed") || randomSeed());
 let temporaryMessage = "";
 let temporaryMessageTimer = null;
+let nodeAlertTimer = null;
 let touchStart = null;
 
 function isExploring() {
@@ -63,6 +69,19 @@ function showTemporaryMessage(message) {
     temporaryMessage = "";
     syncInterface();
   }, 1300);
+}
+
+function showNodeAlert(pickup) {
+  clearTimeout(nodeAlertTimer);
+  elements.nodeAlertValue.textContent = `+${pickup.energy} charge`;
+  elements.nodeAlert.hidden = false;
+  elements.nodeAlert.classList.remove("is-visible");
+  void elements.nodeAlert.offsetWidth;
+  elements.nodeAlert.classList.add("is-visible");
+  nodeAlertTimer = setTimeout(() => {
+    elements.nodeAlert.classList.remove("is-visible");
+    elements.nodeAlert.hidden = true;
+  }, 1800);
 }
 
 function syncPhotonSelector() {
@@ -118,14 +137,23 @@ function syncInterface() {
     (game.globalEnergy / CONFIG.globalEnergy) * 100,
   )}%`;
 
-  elements.signalLabel.textContent = proximity
-    ? proximity.distance === 0
-      ? "Contact"
-      : `${proximity.distance} cells`
+  const signalText = proximity
+    ? proximity.distance === 1
+      ? "Very close"
+      : proximity.distance === 2
+        ? "Nearby"
+        : "Faint"
     : "Quiet";
+  elements.signalLabel.textContent = signalText;
+  elements.signalCard.classList.toggle("is-detecting", Boolean(proximity));
   elements.signalBars.forEach((bar, index) => {
     bar.classList.toggle("active", Boolean(proximity && index < proximity.strength));
   });
+  elements.canvasSignal.hidden = !proximity;
+  if (proximity) {
+    const unit = proximity.distance === 1 ? "cell" : "cells";
+    elements.canvasSignalValue.textContent = `${signalText} · ${proximity.distance} ${unit}`;
+  }
 
   elements.viewMode.textContent = exploring ? "Expedition view" : "Network view";
   elements.viewTitle.textContent = exploring
@@ -135,8 +163,11 @@ function syncInterface() {
       : "Confirmed ground is stable and free.";
   elements.turnValue.textContent = String(game.turn);
   elements.seedValue.textContent = game.seed;
+  const recordedNodes = photon?.collectedNodes.size || 0;
   elements.notebookValue.textContent = photon?.notebook.size
-    ? `Notebook: ${photon.notebook.size} observed cells`
+    ? `Notebook: ${photon.notebook.size} cells${
+        recordedNodes ? ` · ${recordedNodes} node${recordedNodes === 1 ? "" : "s"}` : ""
+      }`
     : "Notebook: empty";
 
   elements.confirmationValue.textContent = `${percent.toFixed(1)}%`;
@@ -178,12 +209,16 @@ function move(directionName) {
   if (elements.briefing.open) return;
   const result = game.move(directionName);
   if (!result.ok) showTemporaryMessage(result.reason);
+  if (result.pickup) showNodeAlert(result.pickup);
   syncInterface();
 }
 
 function startNewRun(seed = randomSeed()) {
   game = new QuantumFoamGame({}, seed);
   temporaryMessage = "";
+  clearTimeout(nodeAlertTimer);
+  elements.nodeAlert.hidden = true;
+  elements.nodeAlert.classList.remove("is-visible");
   syncInterface();
   elements.canvas.focus();
 }
@@ -357,19 +392,34 @@ function drawMaze(time) {
   }
 
   for (const [index, resource] of game.resources) {
-    if (!resource.confirmed) continue;
+    const recorded = Boolean(game.activePhoton?.collectedNodes.has(index));
+    if (!resource.confirmed && !recorded) continue;
     const position = positionFor(index);
     if (!position) continue;
     const radius = Math.max(2.3, cellSize * 0.19);
-    context.beginPath();
-    context.arc(position.x, position.y, radius, 0, Math.PI * 2);
-    context.fillStyle = "#ffd166";
-    context.fill();
-    context.beginPath();
-    context.arc(position.x, position.y, radius * 1.65, 0, Math.PI * 2);
-    context.strokeStyle = "rgba(255, 209, 102, 0.45)";
-    context.lineWidth = 1;
-    context.stroke();
+    if (resource.confirmed) {
+      context.beginPath();
+      context.arc(position.x, position.y, radius, 0, Math.PI * 2);
+      context.fillStyle = "#ffd166";
+      context.fill();
+      context.beginPath();
+      context.arc(position.x, position.y, radius * 1.65, 0, Math.PI * 2);
+      context.strokeStyle = "rgba(255, 209, 102, 0.45)";
+      context.lineWidth = 1;
+      context.stroke();
+    } else {
+      const pulse = 1 + Math.sin(time / 180) * 0.12;
+      const markerRadius = radius * 1.8 * pulse;
+      context.save();
+      context.shadowColor = "#ffd166";
+      context.shadowBlur = Math.max(8, cellSize * 0.55);
+      context.beginPath();
+      context.arc(position.x, position.y, markerRadius, 0, Math.PI * 2);
+      context.strokeStyle = "#ffd166";
+      context.lineWidth = Math.max(1.5, cellSize * 0.075);
+      context.stroke();
+      context.restore();
+    }
   }
 
   if (game.exit?.spotted) {
