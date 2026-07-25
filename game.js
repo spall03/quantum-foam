@@ -157,10 +157,13 @@ function syncInterface() {
   if (resultVisible) {
     const won = game.status === "won";
     elements.resultEyebrow.textContent = won ? "Exit crossed" : "Run collapsed";
-    elements.resultTitle.textContent = won ? "Reality generated." : "The foam took it back.";
+    elements.resultTitle.textContent = won
+      ? "Reality generated."
+      : game.lossReason?.title || "The foam took it back.";
     elements.resultCopy.textContent = won
       ? `${game.confirmed.size} cells were made permanent in ${game.turn} turns.`
-      : `${game.confirmed.size} cells survived this run. The next maze will be different.`;
+      : `${game.lossReason?.explanation || "This reality could not be sustained."} ` +
+        `${game.confirmed.size} cells survived through turn ${game.turn}.`;
   }
 
   elements.canvas.setAttribute(

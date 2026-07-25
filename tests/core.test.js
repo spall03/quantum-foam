@@ -144,6 +144,52 @@ test("a photon at zero charge is lost with its undelivered notebook", () => {
   assert.equal(game.reachableCells().size, game.cellCount);
 });
 
+test("losing the final photon records an explicit loss reason", () => {
+  const game = new QuantumFoamGame(
+    { photonCount: 1, photonCapacity: 1, resourceCount: 0 },
+    "final-photon",
+  );
+  const outbound = openDirection(game, game.source);
+  game.move(outbound);
+
+  assert.equal(game.status, "lost");
+  assert.equal(game.lossReason.type, "all-photons-lost");
+  assert.equal(game.lossReason.title, "No photons remain.");
+  assert.match(game.lossReason.explanation, /every photon was lost/i);
+});
+
+test("energy bankruptcy records the best remaining route and shortfall", () => {
+  const game = new QuantumFoamGame(
+    { cols: 6, rows: 6, photonCount: 2, globalEnergy: 0, resourceCount: 0 },
+    "energy-stranded",
+  );
+  const candidates = Array.from({ length: game.cellCount }, (_, index) => ({
+    index,
+    cost: game.shortestEnergyCost(game.source, index),
+  })).filter(({ index }) => index !== game.source);
+  candidates.sort((a, b) => b.cost - a.cost);
+  const target = candidates[0];
+  const availableCharge = Math.min(5, target.cost - 1);
+
+  game.resources.set(target.index, {
+    energy: 20,
+    collected: false,
+    confirmed: false,
+  });
+  for (const photon of game.photons) photon.energy = availableCharge;
+
+  game.checkEnergyLoss();
+
+  assert.equal(game.status, "lost");
+  assert.equal(game.lossReason.type, "energy-stranded");
+  assert.equal(game.lossReason.title, "Energy stranded.");
+  assert.equal(game.lossReason.availableCharge, availableCharge);
+  assert.equal(game.lossReason.requiredCharge, target.cost);
+  assert.equal(game.lossReason.shortfall, target.cost - availableCharge);
+  assert.match(game.lossReason.explanation, new RegExp(`had ${availableCharge} charge`));
+  assert.match(game.lossReason.explanation, new RegExp(`required ${target.cost}`));
+});
+
 test("photons can switch at a waystation but not in the foam", () => {
   const game = new QuantumFoamGame({ resourceCount: 0 }, "switching");
   assert.equal(game.switchPhoton(1).ok, true);

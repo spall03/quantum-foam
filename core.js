@@ -71,6 +71,7 @@ export class QuantumFoamGame {
     this.random = mulberry32(hashSeed(this.seed));
     this.turn = 0;
     this.status = "playing";
+    this.lossReason = null;
     this.exit = null;
     this.exitSpotted = false;
     this.log = [];
@@ -391,7 +392,12 @@ export class QuantumFoamGame {
     const nextIndex = this.photons.findIndex((candidate) => candidate.alive);
     if (nextIndex === -1) {
       this.status = "lost";
-      this.addLog("No photons remain. This reality never formed.", "danger");
+      this.lossReason = {
+        type: "all-photons-lost",
+        title: "No photons remain.",
+        explanation: "Every photon was lost before enough of the maze could be confirmed.",
+      };
+      this.addLog(this.lossReason.explanation, "danger");
       return;
     }
 
@@ -567,18 +573,44 @@ export class QuantumFoamGame {
     return Infinity;
   }
 
-  canAnyPhotonReachResource() {
+  getEnergyRecoveryDetails() {
     const availableResources = [...this.resources.entries()].filter(
       ([, resource]) => !resource.collected,
     );
-    if (availableResources.length === 0) return false;
+    let bestRoute = null;
 
-    return this.photons.some((photon) => {
-      if (!photon.alive) return false;
-      return availableResources.some(
-        ([index]) => this.shortestEnergyCost(photon.position, index) <= photon.energy,
-      );
-    });
+    for (const photon of this.photons) {
+      if (!photon.alive) continue;
+      for (const [index] of availableResources) {
+        const requiredCharge = this.shortestEnergyCost(photon.position, index);
+        if (!Number.isFinite(requiredCharge)) continue;
+        const shortfall = Math.max(0, requiredCharge - photon.energy);
+        const candidate = {
+          photonId: photon.id,
+          availableCharge: photon.energy,
+          requiredCharge,
+          shortfall,
+        };
+        if (
+          !bestRoute ||
+          candidate.shortfall < bestRoute.shortfall ||
+          (candidate.shortfall === bestRoute.shortfall &&
+            candidate.requiredCharge < bestRoute.requiredCharge)
+        ) {
+          bestRoute = candidate;
+        }
+      }
+    }
+
+    return {
+      remainingNodes: availableResources.length,
+      bestRoute,
+    };
+  }
+
+  canAnyPhotonReachResource() {
+    const recovery = this.getEnergyRecoveryDetails();
+    return Boolean(recovery.bestRoute && recovery.bestRoute.shortfall === 0);
   }
 
   canAnyPhotonReachExit() {
@@ -593,9 +625,32 @@ export class QuantumFoamGame {
   checkEnergyLoss() {
     if (this.status !== "playing" || this.globalEnergy > 0) return;
     if (this.canAnyPhotonReachExit()) return;
-    if (this.canAnyPhotonReachResource()) return;
+    const recovery = this.getEnergyRecoveryDetails();
+    if (recovery.bestRoute?.shortfall === 0) return;
+
+    let explanation;
+    if (recovery.remainingNodes === 0) {
+      explanation =
+        "The shared pool was empty, and every energy node had already been depleted.";
+    } else if (!recovery.bestRoute) {
+      explanation =
+        "The shared pool was empty, and the remaining energy nodes were cut off by the maze.";
+    } else {
+      explanation =
+        `The shared pool was empty. Photon ${recovery.bestRoute.photonId + 1} had ` +
+        `${recovery.bestRoute.availableCharge} charge, but the best remaining route to an ` +
+        `energy node required ${recovery.bestRoute.requiredCharge}.`;
+    }
+
     this.status = "lost";
-    this.addLog("The pool is dry, and no photon can reach another energy node.", "danger");
+    this.lossReason = {
+      type: "energy-stranded",
+      title: "Energy stranded.",
+      explanation,
+      remainingNodes: recovery.remainingNodes,
+      ...(recovery.bestRoute || {}),
+    };
+    this.addLog(explanation, "danger");
   }
 
   addLog(text, tone = "info") {
@@ -608,6 +663,7 @@ export class QuantumFoamGame {
       seed: this.seed,
       turn: this.turn,
       status: this.status,
+      lossReason: this.lossReason ? { ...this.lossReason } : null,
       source: this.source,
       activePhotonIndex: this.activePhotonIndex,
       globalEnergy: this.globalEnergy,
