@@ -43,6 +43,74 @@ test("generated mazes are connected and have symmetric passages", () => {
   }
 });
 
+test("generated mazes contain open rooms", () => {
+  const game = new QuantumFoamGame({ resourceCount: 0 }, "open-rooms");
+  let openSquare = false;
+
+  for (let y = 0; y < game.config.rows - 1 && !openSquare; y += 1) {
+    for (let x = 0; x < game.config.cols - 1; x += 1) {
+      const topLeft = game.index(x, y);
+      const topRight = game.index(x + 1, y);
+      openSquare =
+        game.isPassageOpen(topLeft, "right") &&
+        game.isPassageOpen(topLeft, "down") &&
+        game.isPassageOpen(topRight, "down") &&
+        game.isPassageOpen(game.index(x, y + 1), "right");
+      if (openSquare) break;
+    }
+  }
+
+  assert.equal(openSquare, true);
+});
+
+test("resource placement creates a route-reachable chain", () => {
+  for (let run = 0; run < 20; run += 1) {
+    const game = new QuantumFoamGame({}, `resource-chain-${run}`);
+    const anchors = new Set([game.source]);
+    const remaining = new Set(game.resources.keys());
+
+    while (remaining.size > 0) {
+      const distances = game.routeDistances(anchors);
+      const reachable = [...remaining].filter(
+        (index) =>
+          distances[index] >= 0 &&
+          distances[index] <= game.config.resourceLinkMaxDistance,
+      );
+      assert.ok(reachable.length > 0);
+      for (const index of reachable) {
+        anchors.add(index);
+        remaining.delete(index);
+      }
+    }
+  }
+});
+
+test("a photon observes along an unobstructed sightline", () => {
+  const game = new QuantumFoamGame({ resourceCount: 0 }, "line-of-sight");
+  let sightline = null;
+
+  for (let index = 0; index < game.cellCount && !sightline; index += 1) {
+    for (const direction of directionNames) {
+      if (!game.isPassageOpen(index, direction)) continue;
+      const first = game.neighbor(index, direction);
+      if (first !== null && game.isPassageOpen(first, direction)) {
+        sightline = {
+          start: index,
+          second: game.neighbor(first, direction),
+        };
+        break;
+      }
+    }
+  }
+
+  assert.ok(sightline);
+  game.activePhoton.position = sightline.start;
+  game.activePhoton.notebook.clear();
+  game.observeFrom(game.activePhoton);
+
+  assert.equal(game.activePhoton.notebook.has(sightline.second), true);
+});
+
 test("an expedition costs charge and delivery confirms the notebook", () => {
   const game = new QuantumFoamGame({ resourceCount: 0 }, "delivery");
   const outbound = openDirection(game, game.source);
@@ -173,6 +241,21 @@ test("an uncollected node is revealed on the map only when it is adjacent", () =
   game.move(adjacentDirection);
 
   assert.equal(game.getRevealedResourceIndices().includes(adjacent), false);
+});
+
+test("the detector reports walking distance through the maze", () => {
+  const game = new QuantumFoamGame({ resourceCount: 0 }, "route-detector");
+  const distances = game.routeDistances([game.source]);
+  const target = [...distances].findIndex(
+    (distance) => distance === Math.min(3, game.config.detectorRange),
+  );
+  game.resources.set(target, {
+    energy: 18,
+    collected: false,
+    confirmed: false,
+  });
+
+  assert.equal(game.getProximity().distance, distances[target]);
 });
 
 test("a photon at zero charge is lost with its undelivered notebook", () => {

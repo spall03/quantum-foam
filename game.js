@@ -140,8 +140,10 @@ function syncInterface() {
   const signalText = proximity
     ? proximity.distance === 1
       ? "Node revealed"
-      : proximity.distance === 2
-        ? "Nearby"
+      : proximity.distance <= 2
+        ? "Very close"
+        : proximity.distance <= 4
+          ? "Nearby"
         : "Faint"
     : "Quiet";
   elements.signalLabel.textContent = signalText;

@@ -7,7 +7,14 @@ export const CONFIG = Object.freeze({
   resourceCount: 12,
   resourceEnergyMin: 16,
   resourceEnergyMax: 24,
-  detectorRange: 3,
+  resourceLinkMinDistance: 6,
+  resourceLinkMaxDistance: 10,
+  resourceForwardBias: 0.5,
+  detectorRange: 8,
+  roomCount: 12,
+  roomMinSize: 3,
+  roomMaxSize: 4,
+  sightRange: 4,
   confirmationThreshold: 0.5,
   confirmedMoveCost: 0,
   unconfirmedMoveCost: 1,
@@ -51,15 +58,6 @@ function mulberry32(seed) {
   };
 }
 
-function shuffled(values, random) {
-  const result = [...values];
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
 export class QuantumFoamGame {
   constructor(config = {}, seed = Date.now()) {
     this.config = Object.freeze({ ...CONFIG, ...config });
@@ -77,6 +75,7 @@ export class QuantumFoamGame {
     this.log = [];
 
     this.walls = this.generateMaze();
+    this.carveRooms(this.walls);
     const sourceY = Math.floor(this.random() * this.config.rows);
     this.source = this.index(0, sourceY);
     this.confirmed = new Set([this.source]);
@@ -189,41 +188,119 @@ export class QuantumFoamGame {
     return walls;
   }
 
+  carveRooms(walls) {
+    const minSize = Math.max(2, this.config.roomMinSize);
+    const maxWidth = Math.min(this.config.cols, Math.max(minSize, this.config.roomMaxSize));
+    const maxHeight = Math.min(this.config.rows, Math.max(minSize, this.config.roomMaxSize));
+
+    for (let room = 0; room < this.config.roomCount; room += 1) {
+      const width = Math.min(
+        this.config.cols,
+        minSize + Math.floor(this.random() * (maxWidth - minSize + 1)),
+      );
+      const height = Math.min(
+        this.config.rows,
+        minSize + Math.floor(this.random() * (maxHeight - minSize + 1)),
+      );
+      const startX = Math.floor(this.random() * (this.config.cols - width + 1));
+      const startY = Math.floor(this.random() * (this.config.rows - height + 1));
+
+      for (let y = startY; y < startY + height; y += 1) {
+        for (let x = startX; x < startX + width; x += 1) {
+          const index = this.index(x, y);
+          if (x < startX + width - 1) {
+            this.setPassage(walls, index, this.index(x + 1, y), true);
+          }
+          if (y < startY + height - 1) {
+            this.setPassage(walls, index, this.index(x, y + 1), true);
+          }
+        }
+      }
+    }
+  }
+
+  routeDistances(starts, walls = this.walls) {
+    const distances = new Int32Array(this.cellCount);
+    distances.fill(-1);
+    const queue = [];
+
+    for (const start of starts) {
+      if (start < 0 || start >= this.cellCount || distances[start] !== -1) continue;
+      distances[start] = 0;
+      queue.push(start);
+    }
+
+    for (let head = 0; head < queue.length; head += 1) {
+      const current = queue[head];
+      for (const name of DIRECTION_NAMES) {
+        if (!this.isPassageOpen(current, name, walls)) continue;
+        const target = this.neighbor(current, name);
+        if (distances[target] !== -1) continue;
+        distances[target] = distances[current] + 1;
+        queue.push(target);
+      }
+    }
+
+    return distances;
+  }
+
   placeResources() {
     const resources = new Map();
-    const candidates = shuffled(
-      Array.from({ length: this.cellCount }, (_, index) => index).filter((index) => {
-        if (index === this.source) return false;
-        const { x } = this.coords(index);
-        return x > 2;
-      }),
-      this.random,
-    );
+    const anchors = [this.source];
 
-    for (const index of candidates) {
-      if (resources.size >= this.config.resourceCount) break;
-      const { x, y } = this.coords(index);
-      const tooClose = [...resources.keys()].some((otherIndex) => {
-        const other = this.coords(otherIndex);
-        return Math.abs(x - other.x) + Math.abs(y - other.y) < 4;
-      });
-      if (tooClose) continue;
+    while (resources.size < this.config.resourceCount) {
+      const distances = this.routeDistances(anchors);
+      let candidates = Array.from({ length: this.cellCount }, (_, index) => index).filter(
+        (index) =>
+          index !== this.source &&
+          !resources.has(index) &&
+          distances[index] >= this.config.resourceLinkMinDistance &&
+          distances[index] <= this.config.resourceLinkMaxDistance,
+      );
+
+      if (candidates.length === 0) {
+        candidates = Array.from({ length: this.cellCount }, (_, index) => index).filter(
+          (index) =>
+            index !== this.source &&
+            !resources.has(index) &&
+            distances[index] > 0 &&
+            distances[index] <= this.config.resourceLinkMaxDistance,
+        );
+      }
+      if (candidates.length === 0) break;
+
+      let index = candidates[0];
+      let bestScore = -Infinity;
+      for (const candidate of candidates) {
+        const score =
+          this.coords(candidate).x * this.config.resourceForwardBias +
+          this.random() * this.config.cols;
+        if (score > bestScore) {
+          bestScore = score;
+          index = candidate;
+        }
+      }
+
       const span = this.config.resourceEnergyMax - this.config.resourceEnergyMin + 1;
       resources.set(index, {
         energy: this.config.resourceEnergyMin + Math.floor(this.random() * span),
         collected: false,
         confirmed: false,
       });
+      anchors.push(index);
     }
 
     return resources;
   }
 
   observeFrom(photon) {
-    const cells = [photon.position];
+    const cells = new Set([photon.position]);
     for (const name of DIRECTION_NAMES) {
-      if (this.isPassageOpen(photon.position, name)) {
-        cells.push(this.neighbor(photon.position, name));
+      let current = photon.position;
+      for (let distance = 0; distance < this.config.sightRange; distance += 1) {
+        if (!this.isPassageOpen(current, name)) break;
+        current = this.neighbor(current, name);
+        cells.add(current);
       }
     }
     for (const index of cells) {
@@ -421,6 +498,7 @@ export class QuantumFoamGame {
   rerollUnconfirmed() {
     const oldWalls = this.walls;
     const generated = this.generateMaze();
+    this.carveRooms(generated);
     const nextWalls = new Uint8Array(oldWalls);
 
     for (let index = 0; index < this.cellCount; index += 1) {
@@ -539,32 +617,33 @@ export class QuantumFoamGame {
 
   getProximity() {
     if (!this.activePhoton?.alive) return null;
-    const current = this.coords(this.activePhoton.position);
+    const distances = this.routeDistances([this.activePhoton.position]);
     let closest = Infinity;
 
     for (const [index, resource] of this.resources) {
       if (resource.collected) continue;
-      const target = this.coords(index);
-      const distance = Math.abs(current.x - target.x) + Math.abs(current.y - target.y);
-      closest = Math.min(closest, distance);
+      if (distances[index] >= 0) closest = Math.min(closest, distances[index]);
     }
 
     if (closest > this.config.detectorRange) return null;
     return {
       distance: closest,
-      strength: this.config.detectorRange - closest + 1,
+      strength: Math.max(
+        1,
+        Math.ceil(
+          ((this.config.detectorRange - closest + 1) / this.config.detectorRange) * 3,
+        ),
+      ),
     };
   }
 
   getRevealedResourceIndices() {
     if (!this.activePhoton?.alive) return [];
-    const current = this.coords(this.activePhoton.position);
+    const distances = this.routeDistances([this.activePhoton.position]);
 
     return [...this.resources.entries()]
       .filter(([index, resource]) => {
-        if (resource.collected) return false;
-        const target = this.coords(index);
-        return Math.abs(current.x - target.x) + Math.abs(current.y - target.y) === 1;
+        return !resource.collected && distances[index] === 1;
       })
       .map(([index]) => index);
   }
