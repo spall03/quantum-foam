@@ -556,6 +556,19 @@ export class QuantumFoamGame {
     };
   }
 
+  getRevealedResourceIndices() {
+    if (!this.activePhoton?.alive) return [];
+    const current = this.coords(this.activePhoton.position);
+
+    return [...this.resources.entries()]
+      .filter(([index, resource]) => {
+        if (resource.collected) return false;
+        const target = this.coords(index);
+        return Math.abs(current.x - target.x) + Math.abs(current.y - target.y) === 1;
+      })
+      .map(([index]) => index);
+  }
+
   shortestEnergyCost(start, target) {
     const distances = new Float64Array(this.cellCount);
     distances.fill(Infinity);

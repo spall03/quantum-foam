@@ -147,6 +147,34 @@ test("moving onto a hidden node reports the pickup and records its location", ()
   assert.equal(game.resources.get(target).collected, true);
 });
 
+test("an uncollected node is revealed on the map only when it is adjacent", () => {
+  const game = new QuantumFoamGame({ resourceCount: 0 }, "adjacent-reveal");
+  const adjacentDirection = openDirection(game, game.source);
+  const adjacent = game.neighbor(game.source, adjacentDirection);
+  const source = game.coords(game.source);
+  const farther = Array.from({ length: game.cellCount }, (_, index) => index).find((index) => {
+    const cell = game.coords(index);
+    return Math.abs(source.x - cell.x) + Math.abs(source.y - cell.y) === 2;
+  });
+
+  game.resources.set(adjacent, {
+    energy: 18,
+    collected: false,
+    confirmed: false,
+  });
+  game.resources.set(farther, {
+    energy: 18,
+    collected: false,
+    confirmed: false,
+  });
+
+  assert.deepEqual(game.getRevealedResourceIndices(), [adjacent]);
+
+  game.move(adjacentDirection);
+
+  assert.equal(game.getRevealedResourceIndices().includes(adjacent), false);
+});
+
 test("a photon at zero charge is lost with its undelivered notebook", () => {
   const game = new QuantumFoamGame(
     { photonCount: 2, photonCapacity: 1, resourceCount: 0 },

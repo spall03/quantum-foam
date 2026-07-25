@@ -139,7 +139,7 @@ function syncInterface() {
 
   const signalText = proximity
     ? proximity.distance === 1
-      ? "Very close"
+      ? "Node revealed"
       : proximity.distance === 2
         ? "Nearby"
         : "Faint"
@@ -151,8 +151,10 @@ function syncInterface() {
   });
   elements.canvasSignal.hidden = !proximity;
   if (proximity) {
-    const unit = proximity.distance === 1 ? "cell" : "cells";
-    elements.canvasSignalValue.textContent = `${signalText} · ${proximity.distance} ${unit}`;
+    elements.canvasSignalValue.textContent =
+      proximity.distance === 1
+        ? "Adjacent · marked on map"
+        : `${signalText} · ${proximity.distance} cells`;
   }
 
   elements.viewMode.textContent = exploring ? "Expedition view" : "Network view";
@@ -391,9 +393,11 @@ function drawMaze(time) {
     );
   }
 
+  const revealedResources = new Set(game.getRevealedResourceIndices());
   for (const [index, resource] of game.resources) {
     const recorded = Boolean(game.activePhoton?.collectedNodes.has(index));
-    if (!resource.confirmed && !recorded) continue;
+    const revealed = revealedResources.has(index);
+    if (!resource.confirmed && !recorded && !revealed) continue;
     const position = positionFor(index);
     if (!position) continue;
     const radius = Math.max(2.3, cellSize * 0.19);
@@ -407,7 +411,7 @@ function drawMaze(time) {
       context.strokeStyle = "rgba(255, 209, 102, 0.45)";
       context.lineWidth = 1;
       context.stroke();
-    } else {
+    } else if (recorded) {
       const pulse = 1 + Math.sin(time / 180) * 0.12;
       const markerRadius = radius * 1.8 * pulse;
       context.save();
@@ -417,6 +421,39 @@ function drawMaze(time) {
       context.arc(position.x, position.y, markerRadius, 0, Math.PI * 2);
       context.strokeStyle = "#ffd166";
       context.lineWidth = Math.max(1.5, cellSize * 0.075);
+      context.stroke();
+      context.restore();
+    } else {
+      const pulse = 1 + Math.sin(time / 150) * 0.14;
+      const markerRadius = Math.max(6, cellSize * 0.34) * pulse;
+      context.save();
+      context.shadowColor = "#ffd166";
+      context.shadowBlur = Math.max(12, cellSize * 0.9);
+
+      context.beginPath();
+      context.arc(position.x, position.y, markerRadius, 0, Math.PI * 2);
+      context.strokeStyle = "#ffd166";
+      context.lineWidth = Math.max(2, cellSize * 0.095);
+      context.stroke();
+
+      context.beginPath();
+      context.arc(position.x, position.y, Math.max(2.5, cellSize * 0.12), 0, Math.PI * 2);
+      context.fillStyle = "#fff0ad";
+      context.fill();
+
+      const tickStart = markerRadius * 1.25;
+      const tickEnd = markerRadius * 1.75;
+      context.beginPath();
+      context.moveTo(position.x - tickEnd, position.y);
+      context.lineTo(position.x - tickStart, position.y);
+      context.moveTo(position.x + tickStart, position.y);
+      context.lineTo(position.x + tickEnd, position.y);
+      context.moveTo(position.x, position.y - tickEnd);
+      context.lineTo(position.x, position.y - tickStart);
+      context.moveTo(position.x, position.y + tickStart);
+      context.lineTo(position.x, position.y + tickEnd);
+      context.strokeStyle = "rgba(255, 209, 102, 0.88)";
+      context.lineWidth = Math.max(1, cellSize * 0.06);
       context.stroke();
       context.restore();
     }
