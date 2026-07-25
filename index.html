@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="Quantum Foam is a maze exploration prototype about carrying fragile observations back into permanent reality."
+    />
+    <meta name="theme-color" content="#07090f" />
+    <title>Quantum Foam</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+
+    <main class="shell">
+      <header class="masthead">
+        <a class="wordmark" href="./" aria-label="Quantum Foam home">
+          <span class="wordmark-mark" aria-hidden="true"></span>
+          <span>Quantum Foam</span>
+        </a>
+        <div class="masthead-actions">
+          <button class="text-button" id="help-button" type="button">How to play</button>
+          <button class="text-button" id="new-run-button" type="button">New maze</button>
+        </div>
+      </header>
+
+      <section class="game-layout" aria-label="Quantum Foam game">
+        <aside class="hud hud-left" aria-label="Run status">
+          <section class="metric-card primary-metric">
+            <div class="metric-heading">
+              <span>Photon charge</span>
+              <strong id="photon-energy-value">20 / 20</strong>
+            </div>
+            <div class="meter">
+              <span id="photon-energy-bar"></span>
+            </div>
+          </section>
+
+          <section class="metric-card">
+            <div class="metric-heading">
+              <span>Shared pool</span>
+              <strong id="global-energy-value">100</strong>
+            </div>
+            <div class="meter meter-secondary">
+              <span id="global-energy-bar"></span>
+            </div>
+          </section>
+
+          <section class="signal-card" aria-label="Resource proximity detector">
+            <div>
+              <span class="eyebrow">Node signal</span>
+              <strong id="signal-label">Quiet</strong>
+            </div>
+            <div class="signal-bars" id="signal-bars" aria-hidden="true">
+              <i></i><i></i><i></i>
+            </div>
+          </section>
+
+          <section class="photon-card">
+            <span class="eyebrow">Photons</span>
+            <div class="photon-selector" id="photon-selector"></div>
+            <p class="microcopy">Switch only while parked at a waystation.</p>
+          </section>
+
+          <section class="legend" aria-label="Map legend">
+            <span><i class="legend-swatch confirmed"></i>Confirmed</span>
+            <span><i class="legend-swatch observed"></i>Observed</span>
+            <span><i class="legend-swatch foam"></i>Quantum foam</span>
+          </section>
+        </aside>
+
+        <section class="playfield">
+          <div class="view-heading">
+            <div>
+              <span class="eyebrow" id="view-mode">Network view</span>
+              <h1 id="view-title">Build a route into the unknown.</h1>
+            </div>
+            <div class="turn-counter">
+              <span>Turn</span>
+              <strong id="turn-value">0</strong>
+            </div>
+          </div>
+
+          <div class="canvas-frame" id="canvas-frame">
+            <canvas
+              id="game-canvas"
+              width="900"
+              height="900"
+              tabindex="0"
+              role="img"
+              aria-label="Quantum maze. Use arrow keys or WASD to move."
+            ></canvas>
+            <div class="corner-label corner-label-top">Reality map // <span id="seed-value"></span></div>
+            <div class="corner-label corner-label-bottom" id="notebook-value">Notebook: empty</div>
+            <div class="run-result" id="run-result" hidden>
+              <span class="eyebrow" id="result-eyebrow">Run complete</span>
+              <h2 id="result-title">Reality generated.</h2>
+              <p id="result-copy"></p>
+              <button class="primary-button" id="result-new-run" type="button">Generate another maze</button>
+            </div>
+          </div>
+
+          <div class="mobile-controls" aria-label="Movement controls">
+            <button type="button" data-direction="up" aria-label="Move up">↑</button>
+            <button type="button" data-direction="left" aria-label="Move left">←</button>
+            <span aria-hidden="true"></span>
+            <button type="button" data-direction="right" aria-label="Move right">→</button>
+            <button type="button" data-direction="down" aria-label="Move down">↓</button>
+          </div>
+        </section>
+
+        <aside class="hud hud-right" aria-label="Expedition information">
+          <section class="confirmation-card">
+            <div class="confirmation-copy">
+              <span class="eyebrow">Reality confirmed</span>
+              <strong id="confirmation-value">0.1%</strong>
+            </div>
+            <div class="confirmation-orbit" aria-hidden="true">
+              <i class="orbit-progress" id="confirmation-orbit"></i>
+              <span id="confirmation-short">0%</span>
+            </div>
+            <p id="exit-status">Confirm 50% to generate an exit.</p>
+          </section>
+
+          <section class="dispatch-card">
+            <span class="eyebrow">Last transmission</span>
+            <p class="transmission" id="transmission" aria-live="polite">
+              Photon 1 is ready at the source.
+            </p>
+          </section>
+
+          <section class="field-notes">
+            <span class="eyebrow">Field rules</span>
+            <ol>
+              <li><span>01</span> Purple cells cost one charge every time you cross them.</li>
+              <li><span>02</span> Return to a station to lock your notebook into reality.</li>
+              <li><span>03</span> Lose a photon and its undelivered map dissolves.</li>
+            </ol>
+          </section>
+
+          <section class="keyboard-hint">
+            <span>Move</span>
+            <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+            <span>or arrow keys</span>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <dialog class="briefing" id="briefing">
+      <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
+      <span class="eyebrow">Field briefing</span>
+      <h2>Make the maze real.</h2>
+      <p>
+        Send a photon into the foam. It records every corridor it observes, but nothing is
+        permanent until the photon carries that notebook back to a confirmed station.
+      </p>
+      <div class="briefing-loop" aria-label="Core game loop">
+        <div><span>1</span><strong>Explore</strong><small>Spend charge in purple territory.</small></div>
+        <div><span>2</span><strong>Find energy</strong><small>Follow the signal, not a direction.</small></div>
+        <div><span>3</span><strong>Return</strong><small>Deliver the map before charge reaches zero.</small></div>
+        <div><span>4</span><strong>Push deeper</strong><small>Confirmed routes are permanent and free.</small></div>
+      </div>
+      <p class="briefing-warning">
+        A photon dies at zero charge. Its undelivered corridors reroll, and that photon is gone
+        for the rest of the run.
+      </p>
+      <button class="primary-button" id="begin-button" type="button">Begin expedition</button>
+    </dialog>
+
+    <script type="module" src="./game.js"></script>
+  </body>
+</html>

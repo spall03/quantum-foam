@@ -1,0 +1,9 @@
+{
+  "name": "quantum-foam",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check core.js && node --check game.js && node --test"
+  }
+}
