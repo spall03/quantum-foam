@@ -14,6 +14,10 @@
   --energy: #ffd166;
   --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --masthead-height: 60px;
+  --view-heading-height: 58px;
+  --layout-top: 16px;
+  --layout-bottom: 12px;
 }
 
 * {
@@ -21,14 +25,18 @@
 }
 
 html {
+  height: 100%;
   min-width: 320px;
+  overflow: hidden;
   background: var(--black);
 }
 
 body {
+  height: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
-  overflow-x: hidden;
+  overflow: hidden;
   color: var(--ink);
   font-family: var(--sans);
   background:
@@ -61,13 +69,16 @@ button {
 
 .shell {
   width: min(1760px, 100%);
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   margin: 0 auto;
-  padding: 0 28px 30px;
+  padding: 0 28px var(--layout-bottom);
+  overflow: hidden;
 }
 
 .masthead {
-  min-height: 76px;
+  height: var(--masthead-height);
+  min-height: var(--masthead-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -121,20 +132,29 @@ button {
   grid-template-columns: minmax(190px, 250px) minmax(480px, 1fr) minmax(210px, 270px);
   gap: clamp(20px, 3vw, 52px);
   align-items: start;
-  padding-top: clamp(26px, 4vh, 58px);
+  height: calc(100dvh - var(--masthead-height));
+  padding-top: var(--layout-top);
+  padding-bottom: var(--layout-bottom);
+  overflow: hidden;
+}
+
+.playfield {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .hud {
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 .hud-left {
-  padding-top: 76px;
+  padding-top: var(--view-heading-height);
 }
 
 .hud-right {
-  padding-top: 20px;
+  padding-top: 0;
 }
 
 .metric-card,
@@ -144,7 +164,7 @@ button {
 .dispatch-card,
 .field-notes,
 .keyboard-hint {
-  padding: 16px 0;
+  padding: 13px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -328,7 +348,8 @@ button {
 }
 
 .view-heading {
-  min-height: 76px;
+  height: var(--view-heading-height);
+  min-height: var(--view-heading-height);
   display: flex;
   align-items: start;
   justify-content: space-between;
@@ -338,7 +359,7 @@ button {
 .view-heading h1 {
   max-width: 620px;
   margin: 8px 0 0;
-  font-size: clamp(22px, 2.1vw, 34px);
+  font-size: clamp(20px, 1.8vw, 30px);
   font-weight: 440;
   line-height: 1.1;
   letter-spacing: -0.035em;
@@ -360,8 +381,15 @@ button {
 
 .canvas-frame {
   position: relative;
-  width: 100%;
+  width: min(
+    100%,
+    calc(
+      100dvh - var(--masthead-height) - var(--layout-top) - var(--layout-bottom) -
+        var(--view-heading-height)
+    )
+  );
   aspect-ratio: 1;
+  align-self: center;
   overflow: hidden;
   border: 1px solid rgba(114, 245, 221, 0.14);
   background: #05070b;
@@ -497,12 +525,12 @@ button {
 
 .confirmation-card {
   position: relative;
-  min-height: 174px;
+  min-height: 154px;
 }
 
 .confirmation-card > p {
   max-width: 130px;
-  margin: 42px 0 0;
+  margin: 30px 0 0;
   color: var(--dim);
   font-size: 11px;
   line-height: 1.5;
@@ -552,8 +580,8 @@ button {
 }
 
 .transmission {
-  min-height: 66px;
-  margin: 12px 0 0;
+  min-height: 50px;
+  margin: 10px 0 0;
   color: #c2c6cf;
   font-size: 12px;
   line-height: 1.55;
@@ -561,8 +589,8 @@ button {
 
 .field-notes ol {
   display: grid;
-  gap: 13px;
-  margin: 14px 0 0;
+  gap: 10px;
+  margin: 12px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -609,6 +637,7 @@ kbd {
 
 .briefing {
   width: min(680px, calc(100% - 32px));
+  max-height: calc(100dvh - 24px);
   padding: clamp(26px, 5vw, 48px);
   border: 1px solid rgba(169, 141, 255, 0.35);
   border-radius: 2px;
@@ -713,17 +742,15 @@ kbd {
   color: #06110f;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1200px) and (min-width: 961px) {
   .game-layout {
-    grid-template-columns: minmax(150px, 210px) minmax(460px, 1fr);
+    grid-template-columns: minmax(150px, 190px) minmax(420px, 1fr) minmax(170px, 210px);
+    gap: 16px;
   }
 
-  .hud-right {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 28px;
-    padding-top: 0;
+  .field-notes li {
+    grid-template-columns: 20px 1fr;
+    font-size: 10px;
   }
 
   .keyboard-hint {
@@ -731,13 +758,44 @@ kbd {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-height: 650px) and (min-width: 961px) {
+  :root {
+    --masthead-height: 52px;
+    --view-heading-height: 50px;
+    --layout-top: 10px;
+    --layout-bottom: 8px;
+  }
+
+  .field-notes,
+  .keyboard-hint,
+  .legend {
+    display: none;
+  }
+
+  .confirmation-card {
+    min-height: 132px;
+  }
+
+  .confirmation-card > p {
+    margin-top: 16px;
+  }
+}
+
+@media (max-width: 960px) {
+  :root {
+    --masthead-height: 54px;
+    --view-heading-height: 58px;
+    --layout-top: 8px;
+    --layout-bottom: 6px;
+  }
+
   .shell {
-    padding: 0 14px 26px;
+    padding: 0 14px var(--layout-bottom);
   }
 
   .masthead {
-    min-height: 62px;
+    height: var(--masthead-height);
+    min-height: var(--masthead-height);
   }
 
   .wordmark {
@@ -752,81 +810,202 @@ kbd {
   .game-layout {
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    padding-top: 24px;
+    gap: 8px;
+    height: calc(100dvh - var(--masthead-height));
+    padding-top: var(--layout-top);
+    padding-bottom: var(--layout-bottom);
   }
 
   .playfield {
-    display: contents;
+    order: 1;
+    width: 100%;
+    display: flex;
+    min-height: 0;
   }
 
   .view-heading {
-    min-height: 64px;
-    order: 1;
+    height: var(--view-heading-height);
+    min-height: var(--view-heading-height);
   }
 
   .view-heading h1 {
-    max-width: 270px;
-    font-size: 24px;
+    max-width: 68vw;
+    margin-top: 5px;
+    font-size: clamp(17px, 5vw, 22px);
   }
 
   .canvas-frame {
-    order: 2;
+    width: min(100%, calc(100dvh - 385px));
+    min-width: 180px;
   }
 
   .hud-left {
-    order: 3;
+    order: 2;
     width: 100%;
     grid-template-columns: 1fr 1fr;
-    gap: 12px 18px;
+    gap: 6px 10px;
     padding-top: 0;
   }
 
+  .metric-card,
   .signal-card,
-  .photon-card,
-  .legend {
-    grid-column: 1 / -1;
+  .photon-card {
+    padding: 8px 0;
+  }
+
+  .signal-card {
+    grid-column: 1;
   }
 
   .photon-card {
-    display: grid;
-    grid-template-columns: 80px 1fr;
-    align-items: center;
-    gap: 10px;
+    grid-column: 2;
   }
 
   .photon-selector {
-    margin-top: 0;
+    margin-top: 6px;
+    gap: 4px;
+  }
+
+  .photon-button {
+    padding: 6px 2px 5px;
+  }
+
+  .photon-button small {
+    margin-top: 3px;
+    font-size: 8px;
   }
 
   .photon-card .microcopy {
-    grid-column: 1 / -1;
-    margin-top: 0;
+    display: none;
+  }
+
+  .legend {
+    display: none;
   }
 
   .mobile-controls {
-    display: grid;
-    order: 4;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .mobile-controls span {
+    display: none;
+  }
+
+  .mobile-controls button,
+  .mobile-controls button:first-child,
+  .mobile-controls button:nth-child(2),
+  .mobile-controls button:nth-child(4),
+  .mobile-controls button:last-child {
+    grid-column: auto;
+  }
+
+  .mobile-controls button {
+    width: 44px;
+    height: 36px;
   }
 
   .hud-right {
-    order: 5;
+    order: 3;
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
+    grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
+    gap: 10px;
     width: 100%;
+    padding-top: 0;
   }
 
-  .field-notes {
+  .confirmation-card,
+  .dispatch-card {
+    min-height: 0;
+    padding: 8px 0;
+  }
+
+  .confirmation-card > p {
+    max-width: none;
+    margin: 6px 0 0;
+    font-size: 9px;
+    line-height: 1.35;
+  }
+
+  .confirmation-copy strong {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  .confirmation-orbit {
     display: none;
+  }
+
+  .transmission {
+    min-height: 0;
+    max-height: 2.7em;
+    margin-top: 6px;
+    overflow: hidden;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  .field-notes,
+  .keyboard-hint {
+    display: none;
+  }
+
+  .briefing {
+    padding: 20px;
+  }
+
+  .briefing h2 {
+    margin: 8px 0;
+    font-size: clamp(30px, 9vw, 44px);
+  }
+
+  .briefing > p {
+    margin: 10px 0;
+    font-size: 12px;
+    line-height: 1.45;
   }
 
   .briefing-loop {
     grid-template-columns: 1fr 1fr;
+    margin: 16px 0;
   }
 
   .briefing-loop div {
-    min-height: 116px;
+    min-height: 94px;
+    padding: 10px;
+  }
+
+  .briefing-loop span {
+    margin-bottom: 14px;
+  }
+
+  .briefing-warning {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 960px) and (max-height: 700px) {
+  .canvas-frame {
+    width: min(100%, calc(100dvh - 377px));
+  }
+
+  .metric-card,
+  .signal-card,
+  .photon-card,
+  .confirmation-card,
+  .dispatch-card {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .meter {
+    margin-top: 7px;
+  }
+
+  .signal-card strong {
+    margin-top: 5px;
   }
 }
 
