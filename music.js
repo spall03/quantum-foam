@@ -1,33 +1,46 @@
 export const MUSIC_LOOP_STEPS = 32;
 
-const TEMPO = 96;
-const STEP_DURATION = 60 / TEMPO / 4;
+const BASE_TEMPO = 94;
+const TEMPO_SPAN = 6;
 const SCHEDULE_AHEAD = 0.14;
 const LOOKAHEAD_MS = 25;
 const MASTER_VOLUME = 0.11;
+const FILTER_MIN = 1350;
+const FILTER_SPAN = 1050;
 
 const BASS_PATTERN = [
-  73.42, null, null, 73.42, null, null, 65.41, null,
-  73.42, null, 87.31, null, null, null, 65.41, null,
-  73.42, null, null, 87.31, null, null, 49, null,
-  65.41, null, 55, null, null, null, 65.41, null,
+  [73.42, 0], null, null, [73.42, 0.22], null, null, [65.41, 0], null,
+  [73.42, 0], null, [87.31, 0.42], null, null, null, [65.41, 0], null,
+  [73.42, 0], null, null, [87.31, 0.58], null, null, [49, 0], null,
+  [65.41, 0], null, [55, 0.3], null, null, null, [65.41, 0], null,
 ];
 
 const CHIP_PATTERN = [
-  null, null, 293.66, null, null, null, 220, null,
-  null, null, 261.63, null, null, null, 220, null,
-  null, null, 349.23, null, null, null, 261.63, null,
-  null, null, 220, null, null, null, 293.66, null,
+  null, null, [293.66, 0.18], null, null, null, [220, 0], null,
+  null, null, [261.63, 0.38], null, null, null, [220, 0.55], null,
+  null, null, [349.23, 0.7], null, null, null, [261.63, 0], null,
+  null, null, [220, 0.48], null, null, null, [293.66, 0.28], null,
 ];
 
-export function getMusicStep(step) {
+function clampProgress(progress) {
+  return Math.max(0, Math.min(1, Number(progress) || 0));
+}
+
+export function getMusicTempo(progress) {
+  return BASE_TEMPO + TEMPO_SPAN * clampProgress(progress);
+}
+
+export function getMusicStep(step, progress = 1) {
   const index = ((step % MUSIC_LOOP_STEPS) + MUSIC_LOOP_STEPS) % MUSIC_LOOP_STEPS;
+  const reality = clampProgress(progress);
+  const bass = BASS_PATTERN[index];
+  const chip = CHIP_PATTERN[index];
   return {
     index,
     kick: index % 4 === 0,
-    hat: index % 4 === 2,
-    bass: BASS_PATTERN[index],
-    chip: CHIP_PATTERN[index],
+    hat: index % 8 === 6 || (reality >= 0.35 && index % 4 === 2),
+    bass: bass && reality >= bass[1] ? bass[0] : null,
+    chip: chip && reality >= chip[1] ? chip[0] : null,
   };
 }
 
@@ -44,6 +57,7 @@ export class QuantumMusic {
     this.timer = null;
     this.suspendTimer = null;
     this.playing = false;
+    this.progress = 0;
   }
 
   get supported() {
@@ -59,7 +73,7 @@ export class QuantumMusic {
 
     this.toneFilter = this.context.createBiquadFilter();
     this.toneFilter.type = "lowpass";
-    this.toneFilter.frequency.value = 1850;
+    this.toneFilter.frequency.value = FILTER_MIN + FILTER_SPAN * this.progress;
     this.toneFilter.Q.value = 0.7;
     this.toneFilter.connect(this.masterGain);
     this.masterGain.connect(this.context.destination);
@@ -125,6 +139,20 @@ export class QuantumMusic {
     return this.start();
   }
 
+  setProgress(progress) {
+    const nextProgress = clampProgress(progress);
+    if (nextProgress === this.progress) return;
+
+    this.progress = nextProgress;
+    if (!this.context || !this.toneFilter) return;
+
+    const now = this.context.currentTime;
+    const target = FILTER_MIN + FILTER_SPAN * this.progress;
+    this.toneFilter.frequency.cancelScheduledValues(now);
+    this.toneFilter.frequency.setValueAtTime(this.toneFilter.frequency.value, now);
+    this.toneFilter.frequency.linearRampToValueAtTime(target, now + 1.4);
+  }
+
   setPageVisible(visible) {
     if (!this.context || !this.playing) return;
     if (visible) {
@@ -138,21 +166,34 @@ export class QuantumMusic {
     if (!this.playing || this.context.state !== "running") return;
 
     while (this.nextStepTime < this.context.currentTime + SCHEDULE_AHEAD) {
-      this.scheduleStep(this.currentStep, this.nextStepTime);
+      const stepDuration = 60 / getMusicTempo(this.progress) / 4;
+      this.scheduleStep(this.currentStep, this.nextStepTime, stepDuration);
       this.currentStep = (this.currentStep + 1) % MUSIC_LOOP_STEPS;
-      this.nextStepTime += STEP_DURATION;
+      this.nextStepTime += stepDuration;
     }
   }
 
-  scheduleStep(step, time) {
-    const event = getMusicStep(step);
+  scheduleStep(step, time, stepDuration) {
+    const event = getMusicStep(step, this.progress);
     if (event.kick) this.triggerKick(time);
     if (event.hat) this.triggerHat(time, event.index % 8 === 6);
     if (event.bass) {
-      this.triggerTone(event.bass, time, STEP_DURATION * 0.84, "square", 0.105);
+      this.triggerTone(
+        event.bass,
+        time,
+        stepDuration * 0.84,
+        "square",
+        0.085 + this.progress * 0.02,
+      );
     }
     if (event.chip) {
-      this.triggerTone(event.chip, time, STEP_DURATION * 0.42, "triangle", 0.026);
+      this.triggerTone(
+        event.chip,
+        time,
+        stepDuration * 0.42,
+        "triangle",
+        0.018 + this.progress * 0.008,
+      );
     }
   }
 

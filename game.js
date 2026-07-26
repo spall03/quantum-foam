@@ -145,6 +145,7 @@ function syncInterface() {
   const photon = game.activePhoton;
   const ratio = game.confirmationRatio;
   const percent = ratio * 100;
+  music.setProgress(ratio / CONFIG.confirmationThreshold);
   const proximity = game.getProximity();
   const visibleResources = game.getRevealedResourceIndices();
   const hasVisualContact = visibleResources.length > 0;
