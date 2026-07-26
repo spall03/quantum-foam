@@ -127,6 +127,30 @@ button {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.music-button {
+  min-width: 58px;
+}
+
+.music-button span:first-child {
+  margin-right: 3px;
+  color: var(--violet);
+}
+
+.music-button[aria-pressed="true"] {
+  color: var(--aqua);
+  background: rgba(114, 245, 221, 0.07);
+}
+
+.music-button[aria-pressed="true"] span:first-child {
+  color: var(--aqua);
+  text-shadow: 0 0 10px rgba(114, 245, 221, 0.7);
+}
+
+.music-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
 .game-layout {
   display: grid;
   grid-template-columns: minmax(190px, 250px) minmax(480px, 1fr) minmax(210px, 270px);
@@ -944,6 +968,10 @@ kbd {
     font-size: 9px;
   }
 
+  .music-button {
+    min-width: 42px;
+  }
+
   .game-layout {
     display: flex;
     flex-direction: column;
@@ -1141,6 +1169,34 @@ kbd {
 
   .briefing-warning {
     font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .masthead-actions {
+    gap: 2px;
+  }
+
+  .text-button {
+    padding-inline: 5px;
+  }
+
+  #help-button,
+  #new-run-button {
+    font-size: 0;
+  }
+
+  #help-button::after,
+  #new-run-button::after {
+    font-size: 9px;
+  }
+
+  #help-button::after {
+    content: "Help";
+  }
+
+  #new-run-button::after {
+    content: "New";
   }
 }
 

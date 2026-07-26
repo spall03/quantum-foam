@@ -1,4 +1,5 @@
 import { CONFIG, DIRECTIONS, QuantumFoamGame, WALL } from "./core.js";
+import { QuantumMusic } from "./music.js";
 
 const elements = {
   canvas: document.querySelector("#game-canvas"),
@@ -35,10 +36,13 @@ const elements = {
   helpButton: document.querySelector("#help-button"),
   closeHelp: document.querySelector("#close-help"),
   newRunButton: document.querySelector("#new-run-button"),
+  musicButton: document.querySelector("#music-button"),
+  musicState: document.querySelector("#music-state"),
 };
 
 const context = elements.canvas.getContext("2d");
 const params = new URLSearchParams(window.location.search);
+const music = new QuantumMusic();
 
 function randomSeed() {
   const values = new Uint32Array(2);
@@ -82,6 +86,29 @@ function showNodeAlert(pickup) {
     elements.nodeAlert.classList.remove("is-visible");
     elements.nodeAlert.hidden = true;
   }, 1800);
+}
+
+function syncMusicButton() {
+  elements.musicButton.disabled = !music.supported;
+  elements.musicButton.setAttribute("aria-pressed", String(music.playing));
+  elements.musicButton.setAttribute(
+    "aria-label",
+    music.supported
+      ? music.playing
+        ? "Turn music off"
+        : "Turn music on"
+      : "Music unavailable",
+  );
+  elements.musicState.textContent = music.supported
+    ? music.playing
+      ? "On"
+      : "Off"
+    : "N/A";
+}
+
+async function toggleMusic() {
+  await music.toggle();
+  syncMusicButton();
 }
 
 function syncPhotonSelector() {
@@ -562,6 +589,11 @@ window.addEventListener("keydown", (event) => {
     const result = game.switchPhoton(Number(event.key) - 1);
     if (!result.ok) showTemporaryMessage(result.reason);
     syncInterface();
+    return;
+  }
+  if (event.key === "m" || event.key === "M") {
+    event.preventDefault();
+    void toggleMusic();
   }
 });
 
@@ -599,6 +631,7 @@ elements.canvas.addEventListener(
 
 elements.beginButton.addEventListener("click", () => {
   elements.briefing.close();
+  void music.start().then(syncMusicButton);
   elements.canvas.focus();
 });
 
@@ -613,8 +646,15 @@ elements.helpButton.addEventListener("click", () => {
 
 elements.newRunButton.addEventListener("click", () => startNewRun());
 elements.resultNewRun.addEventListener("click", () => startNewRun());
+elements.musicButton.addEventListener("click", () => {
+  void toggleMusic();
+  elements.canvas.focus();
+});
 
 window.addEventListener("resize", () => drawMaze(performance.now()));
+document.addEventListener("visibilitychange", () => {
+  music.setPageVisible(!document.hidden);
+});
 
 window.__quantumFoam = {
   get game() {
@@ -623,9 +663,11 @@ window.__quantumFoam = {
   move,
   newRun: startNewRun,
   directions: DIRECTIONS,
+  music,
 };
 
 syncInterface();
+syncMusicButton();
 requestAnimationFrame(animationFrame);
 if (typeof elements.briefing.showModal === "function") {
   elements.briefing.showModal();
