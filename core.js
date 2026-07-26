@@ -10,6 +10,7 @@ export const CONFIG = Object.freeze({
   resourceLinkMinDistance: 6,
   resourceLinkMaxDistance: 10,
   resourceForwardBias: 0.5,
+  resourceHalfTarget: 3,
   detectorRange: 5,
   roomCount: 12,
   roomMinSize: 3,
@@ -71,13 +72,13 @@ export class QuantumFoamGame {
     this.status = "playing";
     this.lossReason = null;
     this.exit = null;
-    this.exitSpotted = false;
     this.log = [];
 
     this.walls = this.generateMaze();
     this.carveRooms(this.walls);
     const sourceY = Math.floor(this.random() * this.config.rows);
     this.source = this.index(0, sourceY);
+    this.ensureResourceHalfRoute();
     this.confirmed = new Set([this.source]);
     this.resources = this.placeResources();
     this.photons = Array.from({ length: this.config.photonCount }, (_, index) => ({
@@ -219,6 +220,54 @@ export class QuantumFoamGame {
     }
   }
 
+  ensureResourceHalfRoute() {
+    if (this.config.resourceCount === 0 || this.config.rows < 2) return;
+
+    const midpoint = this.config.rows / 2;
+    const sourcePosition = this.coords(this.source);
+    const oppositeHalf = Array.from(
+      { length: this.cellCount },
+      (_, index) => index,
+    ).filter((index) => {
+      const y = this.coords(index).y;
+      return sourcePosition.y < midpoint ? y >= midpoint : y < midpoint;
+    });
+    const distanceToOppositeHalf = this.routeDistances(oppositeHalf)[this.source];
+    if (distanceToOppositeHalf <= this.config.resourceLinkMaxDistance) {
+      return;
+    }
+
+    const target = {
+      x: Math.floor(this.random() * Math.min(4, this.config.cols)),
+      y:
+        sourcePosition.y < midpoint
+          ? Math.ceil(midpoint)
+          : Math.max(0, Math.floor(midpoint) - 1),
+    };
+    let current = { ...sourcePosition };
+
+    while (current.x !== target.x || current.y !== target.y) {
+      const horizontal = current.x !== target.x;
+      const vertical = current.y !== target.y;
+      const moveHorizontally = horizontal && (!vertical || this.random() < 0.5);
+      const next = moveHorizontally
+        ? {
+            x: current.x + Math.sign(target.x - current.x),
+            y: current.y,
+          }
+        : {
+            x: current.x,
+            y: current.y + Math.sign(target.y - current.y),
+          };
+      this.openPassage(
+        this.walls,
+        this.index(current.x, current.y),
+        this.index(next.x, next.y),
+      );
+      current = next;
+    }
+  }
+
   routeDistances(starts, walls = this.walls) {
     const distances = new Int32Array(this.cellCount);
     distances.fill(-1);
@@ -328,6 +377,11 @@ export class QuantumFoamGame {
   placeResources() {
     const resources = new Map();
     const anchors = [this.source];
+    const halfTarget = Math.min(
+      this.config.resourceHalfTarget,
+      Math.floor(this.config.resourceCount / 2),
+    );
+    const midpoint = this.config.rows / 2;
 
     while (resources.size < this.config.resourceCount) {
       const distances = this.routeDistances(anchors);
@@ -350,11 +404,56 @@ export class QuantumFoamGame {
       }
       if (candidates.length === 0) break;
 
+      let targetBand = null;
+      if (halfTarget > 0) {
+        const resourceRows = [...resources.keys()].map((index) => this.coords(index).y);
+        const topCount = resourceRows.filter((y) => y < midpoint).length;
+        const bottomCount = resourceRows.filter((y) => y >= midpoint).length;
+
+        if (topCount < halfTarget || bottomCount < halfTarget) {
+          if (topCount < bottomCount) {
+            targetBand = "top";
+          } else if (bottomCount < topCount) {
+            targetBand = "bottom";
+          } else {
+            const latestY = this.coords(anchors[anchors.length - 1]).y;
+            targetBand = latestY < this.config.rows / 2 ? "bottom" : "top";
+          }
+        }
+      }
+
+      let bandDistances = null;
+      if (targetBand) {
+        const bandCells = Array.from(
+          { length: this.cellCount },
+          (_, candidate) => candidate,
+        ).filter((candidate) => {
+          const y = this.coords(candidate).y;
+          return targetBand === "top" ? y < midpoint : y >= midpoint;
+        });
+        bandDistances = this.routeDistances(bandCells);
+        const reachableBandCandidates = bandCells.filter(
+          (candidate) =>
+            candidate !== this.source &&
+            !resources.has(candidate) &&
+            distances[candidate] > 0 &&
+            distances[candidate] <= this.config.resourceLinkMaxDistance,
+        );
+        if (reachableBandCandidates.length > 0) {
+          candidates = reachableBandCandidates;
+        }
+      }
+
       let index = candidates[0];
       let bestScore = -Infinity;
       for (const candidate of candidates) {
+        const { x } = this.coords(candidate);
+        const spreadScore = bandDistances
+          ? -bandDistances[candidate] * (this.config.cols + this.config.rows)
+          : 0;
         const score =
-          this.coords(candidate).x * this.config.resourceForwardBias +
+          spreadScore +
+          x * this.config.resourceForwardBias +
           this.random() * this.config.cols;
         if (score > bestScore) {
           bestScore = score;
@@ -597,7 +696,6 @@ export class QuantumFoamGame {
         );
       if (!exitStillOpen) {
         this.exit = null;
-        this.exitSpotted = false;
         this.maybeSpawnExit();
       }
     }
@@ -667,8 +765,10 @@ export class QuantumFoamGame {
     }
 
     if (candidates.length === 0) return;
-    this.exit = candidates[Math.floor(this.random() * candidates.length)];
-    this.exitSpotted = false;
+    this.exit = {
+      ...candidates[Math.floor(this.random() * candidates.length)],
+      spotted: false,
+    };
     this.addLog(
       "Enough of the maze is real. An exit now exists somewhere on the frontier.",
       "exit",
@@ -676,9 +776,9 @@ export class QuantumFoamGame {
   }
 
   updateExitVisibility() {
-    if (!this.exit || this.exitSpotted || !this.activePhoton?.alive) return;
+    if (!this.exit || this.exit.spotted || !this.activePhoton?.alive) return;
     if (this.activePhoton.position === this.exit.from) {
-      this.exitSpotted = true;
+      this.exit.spotted = true;
       this.addLog("The exit shimmers just beyond this boundary.", "exit");
     }
   }
@@ -842,7 +942,7 @@ export class QuantumFoamGame {
       activePhotonIndex: this.activePhotonIndex,
       globalEnergy: this.globalEnergy,
       confirmationRatio: this.confirmationRatio,
-      exit: this.exit ? { ...this.exit, spotted: this.exitSpotted } : null,
+      exit: this.exit ? { ...this.exit } : null,
       proximity: this.getProximity(),
       photons: this.photons.map((photon) => ({
         id: photon.id,

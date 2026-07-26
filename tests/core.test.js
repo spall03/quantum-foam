@@ -85,6 +85,24 @@ test("resource placement creates a route-reachable chain", () => {
   }
 });
 
+test("resource placement never confines every node to one map half", () => {
+  const seeds = [
+    ...Array.from({ length: 200 }, (_, run) => `resource-spread-${run}`),
+    "final-spread-audit-174",
+    "final-spread-audit-272",
+    "final-spread-audit-1780",
+  ];
+
+  for (const seed of seeds) {
+    const game = new QuantumFoamGame({}, seed);
+    const rows = [...game.resources.keys()].map((index) => game.coords(index).y);
+    const midpoint = game.config.rows / 2;
+
+    assert.ok(rows.some((y) => y < midpoint));
+    assert.ok(rows.some((y) => y >= midpoint));
+  }
+});
+
 test("a photon sees diagonally across an open room", () => {
   const game = new QuantumFoamGame(
     { cols: 4, rows: 4, resourceCount: 0, roomCount: 0 },
@@ -399,6 +417,9 @@ test("the exit appears on an open confirmed frontier after the threshold", () =>
   );
 
   game.activePhoton.position = game.exit.from;
+  game.updateExitVisibility();
+  assert.equal(game.exit.spotted, true);
+
   game.activePhoton.energy = 1;
   const result = game.move(game.exit.direction);
   assert.equal(result.event, "won");

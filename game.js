@@ -219,7 +219,7 @@ function syncInterface() {
   elements.confirmationShort.textContent = `${Math.floor(percent)}%`;
   elements.confirmationOrbit.style.setProperty("--orbit-progress", `${Math.min(100, percent)}%`);
   elements.exitStatus.textContent = game.exit
-    ? game.exitSpotted
+    ? game.exit.spotted
       ? "Exit located. Step through from confirmed ground."
       : "Exit generated. Search the confirmed frontier."
     : `Confirm ${Math.round(CONFIG.confirmationThreshold * 100)}% to generate an exit.`;
